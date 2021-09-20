@@ -1126,11 +1126,11 @@ void ETriggervoid()
 void checkSteamON() 
 {
 // check digital GIPO  
-  if (digitalRead(STEAMONPIN) == HIGH) 
+  if (digitalRead(STEAMONPIN) == STEAM_SWITCH_LEVEL_ON)
   {
     SteamON = 1;
   } 
-  if (digitalRead(STEAMONPIN) == LOW && SteamFirstON == 0) // if via blynk on, then SteamFirstON == 1, prevent override
+  if ((digitalRead(STEAMONPIN) != STEAM_SWITCH_LEVEL_ON) && (SteamFirstON == 0)) // if via blynk on, then SteamFirstON == 1, prevent override
   {
     SteamON = 0;
   }
@@ -1714,23 +1714,23 @@ void setup() {
   if (PINBREWSWITCH > 0) // IF PINBREWSWITCH & Steam selected 
   { 
     #if (defined(ESP8266) && PINBREWSWITCH == 16) 
-      pinMode(PINBREWSWITCH, INPUT_PULLDOWN_16);
+      pinMode(PINBREWSWITCH, BREW_SWITCH_LEVEL_ON == HIGH ? INPUT_PULLDOWN_16 : INPUT_PULLUP);
     #endif
     #if (defined(ESP8266) && PINBREWSWITCH == 15) 
-      pinMode(PINBREWSWITCH, INPUT);
+      pinMode(PINBREWSWITCH, BREW_SWITCH_LEVEL_ON == HIGH ? INPUT : INPUT_PULLUP);
     #endif
     #if defined(ESP32) 
-      pinMode(PINBREWSWITCH, INPUT);//
+      pinMode(PINBREWSWITCH, BREW_SWITCH_LEVEL_ON == HIGH ? INPUT_PULLDOWN : INPUT_PULLUP);
     #endif
   }
     #if (defined(ESP8266) && STEAMONPIN == 16) 
-      pinMode(STEAMONPIN, INPUT_PULLDOWN_16);
+      pinMode(STEAMONPIN, STEAM_SWITCH_LEVEL_ON == HIGH ? INPUT_PULLDOWN_16 : INPUT_PULLUP);
     #endif
-      #if (defined(ESP8266) && STEAMONPIN == 15) 
-    pinMode(STEAMONPIN, INPUT);
+    #if (defined(ESP8266) && STEAMONPIN == 15)
+      pinMode(STEAMONPIN, STEAM_SWITCH_LEVEL_ON == HIGH ? INPUT : INPUT_PULLUP);
     #endif
     #if defined(ESP32) 
-      pinMode(STEAMONPIN, INPUT_PULLDOWN);
+      pinMode(STEAMONPIN, STEAM_SWITCH_LEVEL_ON == HIGH ? INPUT_PULLDOWN : INPUT_PULLUP);
     #endif
   /********************************************************
     DISPLAY 128x64

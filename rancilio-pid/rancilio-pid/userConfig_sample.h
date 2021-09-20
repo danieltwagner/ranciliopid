@@ -34,7 +34,7 @@ enum MACHINE {
 #define SHOTTIMER 1                // 0 = deactivated, 1 = activated 2 = with scale
 #define HEATINGLOGO 0              // 0 = deactivated, 1 = Rancilio, 2 = Gaggia 
 #define OFFLINEGLOGO 1             // 0 = deactivated, 1 = activated
-#define BREWSWITCHDELAY 3000       // time in ms
+#define BREWSWITCHDELAY 3000       // How long to show the shot timer (time in ms)
 #define LANGUAGE 1                 // LANGUAGE = 0 (DE), LANGUAGE = 1 (EN), LANGUAGE = 2 (ES)
 
 // Offline mode
@@ -47,10 +47,12 @@ enum MACHINE {
 #define ONLYPIDSCALE 0             // 0 = off , 1= OnlyPID with Scale
 #define BREWMODE 1                 // 1 = NORMAL preinfusion ; 2 = Scale with weight
 #define BREWDETECTION 1            // 0 = off, 1 = Software (Onlypid 1), 2 = Hardware (Onlypid 0), 3 = Sensor/Hardware for Only PID 
-#define BREWSWITCHTYPE 1              //  1 = normal Switch, 2 = Trigger Switch
+#define BREWSWITCHTYPE 1           // 1 = normal Switch, 2 = Trigger Switch
 #define COLDSTART_PID 1            // 1 = default coldstart values, 2 = custom values via blynk (expert mode activated) 
-#define TRIGGERTYPE HIGH           // LOW = low trigger, HIGH = high trigger relay // BREWDETECTION 3 configuration
-#define VOLTAGESENSORTYPE HIGH 
+#define TRIGGERTYPE HIGH           // LOW = low trigger, HIGH = high trigger relay
+#define VOLTAGESENSORTYPE HIGH     // BREWDETECTION 3 configuration
+#define BREW_SWITCH_LEVEL_ON HIGH  // For BREWDETECTION=2: HIGH = switch is closed (active) when signal is high, LOW = active when low
+#define STEAM_SWITCH_LEVEL_ON HIGH // HIGH = switch is closed (active) when signal is high, LOW = active when low
 #define PINMODEVOLTAGESENSOR INPUT // Mode INPUT_PULLUP, INPUT or INPUT_PULLDOWN_16 (Only Pin 16)
 #define PRESSURESENSOR 0           // 1 = pressure sensor connected to A0; PINBREWSWITCH must be set to the connected input!
 
@@ -63,7 +65,7 @@ enum MACHINE {
 
 // E-Trigger
 #define ETRIGGER 0                 // 0 = no trigger (for Rancilio except Rancilio E), 1 = trigger for CPU of Rancilio E
-#define ETRIGGERTIME 600            // seconds, time between trigger signal
+#define ETRIGGERTIME 600           // seconds, time between trigger signal
 #define TRIGGERRELAYTYPE HIGH      // LOW = low trigger, HIGH = high trigger relay for E-Trigger
 
 //Weight SCALE

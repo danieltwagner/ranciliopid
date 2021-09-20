@@ -9,7 +9,7 @@ void checkbrewswitch()
   #if BREWSWITCHTYPE == 1
     #if (PINBREWSWITCH > 0)
       // Digital GIPO
-      brewswitch = digitalRead(PINBREWSWITCH);
+      brewswitch = digitalRead(PINBREWSWITCH) == BREW_SWITCH_LEVEL_ON;
     #endif
     // Digital Analog
     #if (PINBREWSWITCH == 0)
@@ -32,7 +32,7 @@ void checkbrewswitch()
     
     #if (PINBREWSWITCH > 0) 
 
-        int reading = digitalRead(PINBREWSWITCH);
+        int reading = digitalRead(PINBREWSWITCH) == BREW_SWITCH_LEVEL_ON;
 
         if (reading != brewswitchTrigger) {
           // reset the debouncing timer
