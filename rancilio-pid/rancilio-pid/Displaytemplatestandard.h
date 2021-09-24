@@ -77,7 +77,17 @@ void printScreen()
           u8g2.print(langstring_wasserleer);
              
          }
-      } else 
+      } else if (coldStartBoostStatus != kColdStartBoostInactive) {
+        u8g2.setCursor(32, 48);
+        if (coldStartBoostStatus == kColdStartBoostHeating) {
+          u8g2.print("Heating to ");
+          u8g2.print(coldStartBoostStop, 0);
+          u8g2.print((char)176);
+          u8g2.print("C");
+        } else {
+          u8g2.print("Coasting...");
+        }
+      } else
       {
         u8g2.setCursor(40, 48);
 

@@ -47,10 +47,10 @@ enum MACHINE {
 #define ONLYPIDSCALE 0             // 0 = off , 1= OnlyPID with Scale
 #define BREWMODE 1                 // 1 = NORMAL preinfusion ; 2 = Scale with weight
 #define BREWDETECTION 1            // 0 = off, 1 = Software (Onlypid 1), 2 = Hardware (Onlypid 0), 3 = Sensor/Hardware for Only PID 
-#define BREWSWITCHTYPE 1              //  1 = normal Switch, 2 = Trigger Switch
-#define COLDSTART_PID 1            // 1 = default coldstart values, 2 = custom values via blynk (expert mode activated) 
-#define TRIGGERTYPE HIGH           // LOW = low trigger, HIGH = high trigger relay // BREWDETECTION 3 configuration
-#define VOLTAGESENSORTYPE HIGH 
+#define BREWSWITCHTYPE 1           // 1 = normal Switch, 2 = Trigger Switch
+#define COLDSTART_PID 1            // 1 = default coldstart values, 2 = custom values via blynk (expert mode activated)
+#define TRIGGERTYPE HIGH           // LOW = low trigger, HIGH = high trigger relay 
+#define VOLTAGESENSORTYPE HIGH     // BREWDETECTION 3 configuration
 #define PINMODEVOLTAGESENSOR INPUT // Mode INPUT_PULLUP, INPUT or INPUT_PULLDOWN_16 (Only Pin 16)
 #define PRESSURESENSOR 0           // 1 = pressure sensor connected to A0; PINBREWSWITCH must be set to the connected input!
 
@@ -116,6 +116,11 @@ enum MACHINE {
 // PID coldstart
 #define STARTKP 50                 // Start Kp during coldstart
 #define STARTTN 150                // Start Tn during cold start
+
+// Coldstart boost: Replacement for coldstart PID, quickly heats to a pre-set temperature
+#define COLDSTART_BOOST 0          // 0 = use coldstart pid, 1 = use a single heating pulse to quickly get to temperature
+#define COLDSTART_BOOST_TEMP 85    // If using COLDSTART_BOOST = 1, the temperature at which to stop heating.
+#define COLDSTART_TEMP_HISTORY 6   // Window size to detect peak temperature for handoff to PID
 
 // PID - offline brewdetection values
 #define AGGBKP 50                  // Kp

@@ -101,6 +101,20 @@ const unsigned int maxWifiReconnects = MAXWIFIRECONNECTS;
 const unsigned long brewswitchDelay = BREWSWITCHDELAY;
 int BrewMode = BREWMODE;
 
+// For COLDSTART_BOOST
+enum ColdStartBoostState
+{
+  kColdStartBoostInactive,
+  kColdStartBoostHeating,
+  kColdStartBoostCoasting,
+};
+ColdStartBoostState coldStartBoostStatus = kColdStartBoostInactive;
+const float COLDSTART_BOOST_MARGIN = 10.0;  // no point heating if we're close to temperature
+const float COLDSTART_BOOST_MAX = 120.0; // refuse to heat beyond this temperature, ever.
+float coldStartBoostStop = COLDSTART_BOOST_TEMP;
+float coldStartBoostTemps[COLDSTART_TEMP_HISTORY];
+int coldStartBoostTempIdx = 0;
+
 //Display
 uint8_t oled_i2c = OLED_I2C;
 
@@ -484,6 +498,9 @@ BLYNK_WRITE(V34) {
 BLYNK_WRITE(V40) {
   backflushON =  param.asInt();
 }
+BLYNK_WRITE(V41) {
+  coldStartBoostStop =  param.asFloat();
+}
 
 #if (COLDSTART_PID == 2)  // 2=?Blynk values, else default starttemp from config
   BLYNK_WRITE(V11) 
@@ -581,6 +598,18 @@ void movAvg() {
   }
 }
 
+/********************************************************
+  Cold Start Boost temperature history
+*****************************************************/
+void updateColdStartBoostTemp() {
+  coldStartBoostTemps[coldStartBoostTempIdx] = Input;
+
+  // point at the next slot
+  coldStartBoostTempIdx++;
+  if (coldStartBoostTempIdx >= COLDSTART_TEMP_HISTORY) {
+    coldStartBoostTempIdx = 0;
+  }
+}
 
 /********************************************************
   check sensor value.
@@ -631,6 +660,9 @@ void refreshTemp() {
       } else if (firstreading != 0) {
         firstreading = 0;
       }
+      #if COLDSTART_BOOST
+        updateColdStartBoostTemp();
+      #endif
     }
   }
   if (TempSensor == 2)
@@ -658,6 +690,9 @@ void refreshTemp() {
       } else if (firstreading != 0) {
         firstreading = 0;
       }
+      #if COLDSTART_BOOST
+        updateColdStartBoostTemp();
+      #endif
     }
   }
 }
@@ -681,7 +716,7 @@ void initOfflineMode()
   debugStream.writeI("Start offline mode with eeprom values, no wifi:(");
   Offlinemodus = 1 ;
 
-  EEPROM.begin(1024);  // open eeprom
+  EEPROM.begin(2048);  // open eeprom
   double dummy; // check if eeprom values are numeric (only check first value in eeprom)
   EEPROM.get(0, dummy);
   debugStream.writeI("check eeprom 0x00 in dummy: %f",dummy);
@@ -698,6 +733,7 @@ void initOfflineMode()
     EEPROM.get(110, aggbTv);
     EEPROM.get(120, brewtimersoftware);
     EEPROM.get(130, brewboarder);
+    EEPROM.get(140, coldStartBoostStop);
   } else {
     #if DISPLAY != 0
       displayMessage("", "", "", "", "No eeprom,", "Values");
@@ -1256,7 +1292,98 @@ void machinestatevoid()
       }
     break;
 
-    case kColdStart: 
+    case kColdStart:
+      #if COLDSTART_BOOST
+        switch (coldStartBoostStatus)
+        {
+          case kColdStartBoostInactive:
+            // Initialize the system
+            if (isnan(coldStartBoostStop) || coldStartBoostStop < 50 || coldStartBoostStop > COLDSTART_BOOST_MAX) {
+              // revert back to userConfig
+              DEBUG_print("Reverting coldStartBoostDelta to ");
+              DEBUG_println(COLDSTART_BOOST_TEMP);
+              coldStartBoostStop = COLDSTART_BOOST_TEMP;
+            }
+            coldStartBoostTempIdx = 0;
+            for (int i = 0; i < COLDSTART_TEMP_HISTORY; i++)
+            {
+              coldStartBoostTemps[i] = -1.0;
+            }
+
+            if (Input > (coldStartBoostStop - COLDSTART_BOOST_MARGIN))
+            {
+              // temperature difference is small, use PID
+              DEBUG_println("Temperature is already high, not boosting.");
+              machinestate = kPidNormal;
+            }
+            else
+            {
+              coldStartBoostStatus = kColdStartBoostHeating;
+            }
+            break;
+
+          case kColdStartBoostHeating:
+            // refuse to heat very highly
+            if (coldStartBoostStop > COLDSTART_BOOST_MAX)
+            {
+              coldStartBoostStop = COLDSTART_BOOST_MAX;
+            }
+
+            if (Input < coldStartBoostStop)
+            {
+              Output = windowSize; // set heater to maximum
+            }
+            else
+            {
+              Output = 0; // heater off
+              coldStartBoostStatus = kColdStartBoostCoasting;
+            }
+            break;
+
+          case kColdStartBoostCoasting:
+            Output = 0; // heater off
+
+            // is the temperature still rising?
+            float avgTempFirstHalf = 0;
+            float avgTempSecondHalf = 0;
+            bool allTempsFilled = true;
+            for (int i = 0; i < COLDSTART_TEMP_HISTORY; i++)
+            {
+              float temp = coldStartBoostTemps[(coldStartBoostTempIdx + i) % COLDSTART_TEMP_HISTORY];
+              if (temp < 0)
+              {
+                // our temperature array isn't filled yet
+                allTempsFilled = false;
+              }
+              if (i < COLDSTART_TEMP_HISTORY/2)
+              {
+                avgTempFirstHalf += temp;
+              }
+              else
+              {
+                avgTempSecondHalf += temp;
+              }
+            }
+            if (!allTempsFilled)
+            {
+              // no point continuing here. Let's wait for the next loop.
+              break;
+            }
+            int tempsFirstHalf = COLDSTART_TEMP_HISTORY/2;
+            avgTempFirstHalf = avgTempFirstHalf / tempsFirstHalf;
+            avgTempSecondHalf = avgTempSecondHalf / (COLDSTART_TEMP_HISTORY - tempsFirstHalf);
+
+            if (avgTempFirstHalf > avgTempSecondHalf)
+            {
+              // temperature has reached its peak. Hand over to the PID controller
+              DEBUG_println("Reached peak");
+              coldStartBoostStatus = kColdStartBoostInactive;
+              machinestate = kPidNormal;
+            }
+            break;
+        }
+
+      #else // COLDSTART_BOOST
       switch (machinestatecold) 
       // one high Input let the state jump to 19. 
       // switch (machinestatecold) prevent it, we wait 10 sec with new state. 
@@ -1285,6 +1412,8 @@ void machinestatevoid()
           }
           break;
       }
+      #endif // COLDSTART_BOOST
+
       if (SteamON == 1)
       {
         machinestate = kSteam;
@@ -1843,10 +1972,11 @@ void setup() {
           Blynk.syncVirtual(V32);
           Blynk.syncVirtual(V33);
           Blynk.syncVirtual(V34);
+          Blynk.syncVirtual(V41);
           // Blynk.syncAll();  //sync all values from Blynk server
           // Werte in den eeprom schreiben
           // ini eeprom mit begin
-          EEPROM.begin(1024);
+          EEPROM.begin(2048);
           EEPROM.put(0, aggKp);
           EEPROM.put(10, aggTn);
           EEPROM.put(20, aggTv);  
@@ -1859,13 +1989,15 @@ void setup() {
           EEPROM.put(110, aggbTv);
           EEPROM.put(120, brewtimersoftware);
           EEPROM.put(130, brewboarder);
+          EEPROM.put(140, coldStartBoostStop);
+          
           // eeprom schließen
           EEPROM.commit();
         }
       } else 
       {
         debugStream.writeI("No connection to Blynk");
-        EEPROM.begin(1024);  // open eeprom
+        EEPROM.begin(2048);  // open eeprom
         double dummy; // check if eeprom values are numeric (only check first value in eeprom)
         EEPROM.get(0, dummy);
         debugStream.writeI("check eeprom 0x00 in dummy: %f",dummy);
@@ -1886,6 +2018,7 @@ void setup() {
           EEPROM.get(110, aggbTv);
           EEPROM.get(120, brewtimersoftware);
           EEPROM.get(130, brewboarder);
+          EEPROM.get(140, coldStartBoostStop);
         } 
       }
     }

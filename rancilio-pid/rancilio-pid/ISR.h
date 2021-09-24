@@ -25,8 +25,11 @@
         isrCounter = 0;
     }
 
-    //run PID calculation
-    bPID.Compute();
+    if (coldStartBoostStatus == kColdStartBoostInactive)
+    {
+      //run PID calculation
+      bPID.Compute();
+    }
     }
 #endif
 
@@ -47,8 +50,11 @@
       isrCounter = 0;
     }
   
-    //run PID calculation
-    bPID.Compute();
+    if (coldStartBoostStatus == kColdStartBoostInactive)
+    {
+      //run PID calculation
+      bPID.Compute();
+    }
   }
 
  #endif   
