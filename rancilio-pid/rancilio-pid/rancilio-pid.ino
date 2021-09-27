@@ -1318,6 +1318,7 @@ void machinestatevoid()
             }
             else
             {
+              bPID.SetMode(MANUAL);
               coldStartBoostStatus = kColdStartBoostHeating;
             }
             break;
@@ -1377,6 +1378,8 @@ void machinestatevoid()
             {
               // temperature has reached its peak. Hand over to the PID controller
               DEBUG_println("Reached peak");
+              Output = 100; // TODO: Make this configurable/learn it
+              bPID.SetMode(AUTOMATIC);
               coldStartBoostStatus = kColdStartBoostInactive;
               machinestate = kPidNormal;
             }
@@ -1416,6 +1419,7 @@ void machinestatevoid()
 
       if (SteamON == 1)
       {
+        bPID.SetMode(AUTOMATIC);
         machinestate = kSteam;
       }
 
@@ -1426,25 +1430,30 @@ void machinestatevoid()
       )
       
       {
+        bPID.SetMode(AUTOMATIC);
         machinestate = kBrew;
       }
 
       if (SteamON == 1)
       {
+        bPID.SetMode(AUTOMATIC);
         machinestate = kSteam;
       }
 
       if (backflushON || backflushState > 10) 
       {
+        bPID.SetMode(AUTOMATIC);
         machinestate = kBackflush;
       }
 
      if (pidON == 0)
       {
+        bPID.SetMode(AUTOMATIC);
         machinestate = kPidOffline;
       }
      if(sensorError)
       {
+        bPID.SetMode(AUTOMATIC);
         machinestate = kSensorError;
       }
       break;
