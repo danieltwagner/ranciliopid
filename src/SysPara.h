@@ -106,7 +106,7 @@ class SysPara {
             if (_stoItemId < STO_ITEM__LAST_ENUM) {
                 if ((*_data.curPtr >= _data.min) && (*_data.curPtr <= _data.max))
                     return storageSet(_stoItemId, *_data.curPtr, commit);
-                Serial.printf("%s(): value outside of range!\n", __FUNCTION__);
+                Serial.printf("%s(): value outside of range for storage ID %d!\n", __FUNCTION__, _stoItemId);
                 return -1;
             }
             Serial.printf("%s(): no storage ID set!\n", __FUNCTION__);
