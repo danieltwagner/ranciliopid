@@ -40,11 +40,13 @@ typedef enum
   STO_ITEM_PID_START_PONM,          // Use PonM for cold start phase (otherwise use normal PID and same params)
   STO_ITEM_USE_BD_PID,              // use separate PID for brew detection (otherwise continue with regular PID)
   STO_ITEM_STEAM_SETPOINT,          // Setpoint for Steam mode
+  STO_ITEM_COLD_START_BOOST_STOP,   // temp to which to heat before handing over to pid
 
   /* WHEN ADDING NEW ITEMS, THE FOLLOWING HAS TO BE UPDATED:
    * - storage structure:  sto_data_t
    * - item default value: itemDefaults
    * - item address/size:  getItemAddr()
+   * - readSysParamsFromStorage() / writeSysParamsToStorage()
    */
 
   STO_ITEM__LAST_ENUM       // must be the last one!

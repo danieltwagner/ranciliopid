@@ -102,6 +102,20 @@ const int VoltageSensorType = VOLTAGESENSORTYPE;
 const boolean ota = OTA;
 int BrewMode = BREWMODE;
 
+// For COLDSTART_BOOST
+enum ColdStartBoostState
+{
+  kColdStartBoostInactive,
+  kColdStartBoostHeating,
+  kColdStartBoostCoasting,
+};
+ColdStartBoostState coldStartBoostStatus = kColdStartBoostInactive;
+const double COLDSTART_BOOST_MARGIN = 10.0;  // no point heating if we're close to temperature
+const double COLDSTART_BOOST_MAX = 120.0; // refuse to heat beyond this temperature, ever.
+double coldStartBoostTemp = COLDSTART_BOOST_TEMP;
+double coldStartBoostTemps[COLDSTART_TEMP_HISTORY];
+int coldStartBoostTempIdx = 0;
+
 // Display
 uint8_t oled_i2c = OLED_I2C;
 
@@ -241,6 +255,7 @@ SysPara<double> sysParaPreInfPause(&preinfusionpause, PRE_INFUSION_PAUSE_MIN, PR
 SysPara<double> sysParaWeightSetPoint(&weightSetpoint, WEIGHTSETPOINT_MIN, WEIGHTSETPOINT_MAX, STO_ITEM_WEIGHTSETPOINT);
 SysPara<double> sysParaPidKpSteam(&steamKp, PID_KP_STEAM_MIN, PID_KP_STEAM_MAX, STO_ITEM_PID_KP_STEAM);
 SysPara<double> sysParaSteamSetPoint(&steamSetPoint, STEAM_SETPOINT_MIN, STEAM_SETPOINT_MAX, STO_ITEM_STEAM_SETPOINT);
+SysPara<double> sysParaColdStartBoostTemp(&coldStartBoostTemp, 0, 100, STO_ITEM_COLD_START_BOOST_STOP);
 SysPara<uint8_t> sysParaPidOn(&pidON, 0, 1, STO_ITEM_PID_ON);
 SysPara<uint8_t> sysParaUsePonM(&usePonM, 0, 1, STO_ITEM_PID_START_PONM);
 SysPara<uint8_t> sysParaUseBDPID(&useBDPID, 0, 1, STO_ITEM_USE_BD_PID);
@@ -360,6 +375,7 @@ std::vector<mqttVars_t> mqttVars = {
     {"pidON", tUInt8, 0, 1, (void *)&pidON},
     {"steamON", tUInt8, 0, 1, (void *)&steamON},
     {"steamSetPoint", tDouble, STEAM_SETPOINT_MIN, STEAM_SETPOINT_MAX, (void *)&steamSetPoint},
+    {"coldStartBoostTemp", tDouble, BREW_SETPOINT_MIN, BREW_SETPOINT_MAX, (void *)&coldStartBoostTemp},
     {"backflushON", tUInt8, 0, 1, (void *)&backflushON},
     {"aggKp", tDouble, PID_KP_REGULAR_MIN, PID_KP_REGULAR_MAX, (void *)&aggKp},
     {"aggTn", tDouble, PID_TN_REGULAR_MIN, PID_TN_REGULAR_MAX, (void *)&aggTn},
@@ -555,6 +571,19 @@ void calculateTemperatureMovingAverage() {
     }
 }
 
+/********************************************************
+  Cold Start Boost temperature history
+*****************************************************/
+void updateColdStartBoostTemp(double newTemp) {
+    coldStartBoostTemps[coldStartBoostTempIdx] = newTemp;
+
+    // point at the next slot
+    coldStartBoostTempIdx++;
+    if (coldStartBoostTempIdx >= COLDSTART_TEMP_HISTORY) {
+        coldStartBoostTempIdx = 0;
+    }
+}
+
 /**
  * @brief check sensor value.
  * @return If < 0 or difference between old and new >25, then increase error.
@@ -621,6 +650,9 @@ void refreshTemp() {
             } else if (!movingAverageInitialized) {
                 movingAverageInitialized = true;
             }
+            #if COLDSTART_BOOST
+                updateColdStartBoostTemp(temperature);
+            #endif
         }
     }
 
@@ -638,7 +670,7 @@ void refreshTemp() {
         #if ((PINTEMPSENSOR != 16 && defined(ESP8266)) || defined(ESP32))
             temperature = Sensor2.getTemp();
         #endif
-       
+
     #endif
       // temperature = 94;
             if (machineState != kSteam) {
@@ -656,6 +688,9 @@ void refreshTemp() {
             } else if (!movingAverageInitialized) {
                 movingAverageInitialized = true;
             }
+            #if COLDSTART_BOOST
+                updateColdStartBoostTemp(temperature);
+            #endif
         }
     }
 }
@@ -1172,7 +1207,100 @@ void handleMachineState() {
             break;
 
         case kColdStart:
-            /* One high temperature let the state jump to 19.
+            #if COLDSTART_BOOST
+                switch (coldStartBoostStatus)
+                {
+                    case kColdStartBoostInactive:
+                    // Initialize the system
+                    if (isnan(coldStartBoostTemp) || coldStartBoostTemp < 50 || coldStartBoostTemp > COLDSTART_BOOST_MAX) {
+                        // revert back to userConfig
+                        Serial.print("Reverting coldStartBoostDelta to ");
+                        Serial.println(COLDSTART_BOOST_TEMP);
+                        coldStartBoostTemp = COLDSTART_BOOST_TEMP;
+                    }
+                    coldStartBoostTempIdx = 0;
+                    for (int i = 0; i < COLDSTART_TEMP_HISTORY; i++)
+                    {
+                        coldStartBoostTemps[i] = -1.0;
+                    }
+
+                    if (temperature > (coldStartBoostTemp - COLDSTART_BOOST_MARGIN))
+                    {
+                        // temperature difference is small, use PID
+                        Serial.println("Temperature is already high, not boosting.");
+                        machineState = kPidNormal;
+                    }
+                    else
+                    {
+                        bPID.SetMode(MANUAL);
+                        coldStartBoostStatus = kColdStartBoostHeating;
+                    }
+                    break;
+
+                    case kColdStartBoostHeating:
+                    // refuse to heat very highly
+                    if (coldStartBoostTemp > COLDSTART_BOOST_MAX)
+                    {
+                        coldStartBoostTemp = COLDSTART_BOOST_MAX;
+                    }
+
+                    if (temperature < coldStartBoostTemp)
+                    {
+                        pidOutput = windowSize; // set heater to maximum
+                    }
+                    else
+                    {
+                        pidOutput = 0; // heater off
+                        coldStartBoostStatus = kColdStartBoostCoasting;
+                    }
+                    break;
+
+                    case kColdStartBoostCoasting:
+                    pidOutput = 0; // heater off
+
+                    // is the temperature still rising?
+                    float avgTempFirstHalf = 0;
+                    float avgTempSecondHalf = 0;
+                    bool allTempsFilled = true;
+                    for (int i = 0; i < COLDSTART_TEMP_HISTORY; i++)
+                    {
+                        float temp = coldStartBoostTemps[(coldStartBoostTempIdx + i) % COLDSTART_TEMP_HISTORY];
+                        if (temp < 0)
+                        {
+                        // our temperature array isn't filled yet
+                        allTempsFilled = false;
+                        }
+                        if (i < COLDSTART_TEMP_HISTORY/2)
+                        {
+                        avgTempFirstHalf += temp;
+                        }
+                        else
+                        {
+                        avgTempSecondHalf += temp;
+                        }
+                    }
+                    if (!allTempsFilled)
+                    {
+                        // no point continuing here. Let's wait for the next loop.
+                        break;
+                    }
+                    int tempsFirstHalf = COLDSTART_TEMP_HISTORY/2;
+                    avgTempFirstHalf = avgTempFirstHalf / tempsFirstHalf;
+                    avgTempSecondHalf = avgTempSecondHalf / (COLDSTART_TEMP_HISTORY - tempsFirstHalf);
+
+                    if (avgTempFirstHalf > avgTempSecondHalf)
+                    {
+                        // temperature has reached its peak. Hand over to the PID controller
+                        Serial.println("Reached peak");
+                        pidOutput = 100;  // TODO: Make this configurable/learn it
+                        bPID.SetMode(AUTOMATIC);
+                        coldStartBoostStatus = kColdStartBoostInactive;
+                        machineState = kPidNormal;
+                    }
+                    break;
+                }
+            #else // COLDSTART_BOOST
+            /* One high Input let the state jump to 19.
             * switch (machinestatecold) prevent it, we wait 10 sec with new state.
             * during the 10 sec the temperature has to be temperature >= (BrewSetPoint-1),
             * If not, reset machinestatecold
@@ -1195,7 +1323,7 @@ void handleMachineState() {
 
                         break;
                     }
-                    
+
                     // 10 sec temperature above BrewSetPoint, no set new state
                     if (machinestatecoldmillis + 10 * 1000 < millis()) {
                         machineState = kBelowSetPoint;
@@ -1203,26 +1331,32 @@ void handleMachineState() {
                     }
                     break;
             }
+            #endif // COLDSTART_BOOST
 
             if ((timeBrewed > 0 && ONLYPID == 1) ||  // timeBrewed with Only PID
                 (ONLYPID == 0 && brewcounter > 10 && brewcounter <= 42))
             {
+                bPID.SetMode(AUTOMATIC);
                 machineState = kBrew;
             }
 
             if (steamON == 1) {
+                bPID.SetMode(AUTOMATIC);
                 machineState = kSteam;
             }
 
             if (backflushON || backflushState > 10) {
+                bPID.SetMode(AUTOMATIC);
                 machineState = kBackflush;
             }
 
             if (pidON == 0) {
+                bPID.SetMode(AUTOMATIC);
                 machineState = kPidOffline;
             }
 
             if (sensorError) {
+                bPID.SetMode(AUTOMATIC);
                 machineState = kSensorError;
             }
             break;
@@ -1730,7 +1864,10 @@ void setup() {
         {F("BACKFLUSH_ON"), F("Backflush"), false, "", kUInt8, sOtherSection, []{ return false; }, 0, 1, (void *)&backflushON},
 
         //#26
-        {F("VERSION"), F("Version"), false, "", kCString, sOtherSection, []{ return false; }, 0, 1, (void *)sysVersion}
+        {F("VERSION"), F("Version"), false, "", kCString, sOtherSection, []{ return false; }, 0, 1, (void *)sysVersion},
+
+        //#27
+        {F("COLDSTART_BOOST_TEMP"), ("Cold start boost temp (°C)"), true, F("The temperature that the PID will attempt to reach and hold"), kDouble, sTempSection, []{ return true; }, BREW_SETPOINT_MIN, BREW_SETPOINT_MAX, (void *)&coldStartBoostTemp}
     };
     //when adding parameters, update EDITABLE_VARS_LEN!
 
@@ -1860,8 +1997,8 @@ void setup() {
                 influxClient.setConnectionParamsV1(INFLUXDB_URL, INFLUXDB_DB_NAME, INFLUXDB_USER, INFLUXDB_PASSWORD);
             }
         }
-    } else if (connectmode == 0) 
-    { 
+    } else if (connectmode == 0)
+    {
         wm.disconnect(); // no wm
         readSysParamsFromStorage(); // get values from stroage
         offlineMode = 1 ; //offline mode
@@ -2017,7 +2154,10 @@ void looppid() {
 
     refreshTemp();        // update temperature values
     testEmergencyStop();  // test if temp is too high
-    bPID.Compute();       // the variable pidOutput now has new values from PID (will be written to heater pin in ISR.cpp)
+    if (coldStartBoostStatus == kColdStartBoostInactive)
+    {
+        bPID.Compute();
+    }
 
     if ((millis() - lastTempEvent) > tempEventInterval) {
         //send temperatures to website endpoint
@@ -2285,7 +2425,7 @@ int readSysParamsFromStorage(void) {
     if (sysParaSteamSetPoint.getStorage() != 0) return -1;
     if (sysParaUsePonM.getStorage() != 0) return -1;
     if (sysParaUseBDPID.getStorage() != 0) return -1;
-
+    if (sysParaColdStartBoostTemp.getStorage() != 0) return -1;
     return 0;
 }
 
@@ -2317,7 +2457,7 @@ int writeSysParamsToStorage(void) {
     if (sysParaPidKpBd.setStorage() != 0) return -1;
     if (sysParaPidTnBd.setStorage() != 0) return -1;
     if (sysParaPidTvBd.setStorage() != 0) return -1;
-
+    if (sysParaColdStartBoostTemp.setStorage() != 0) return -1;
     return storageCommit();
 }
 

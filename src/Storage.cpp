@@ -59,6 +59,7 @@ typedef struct __attribute__((packed)) {
     double weightsetpoint;
     double steamkp;
     double steamsetpoint;
+    double coldStartBoostTemp;
 } sto_data_t;
 
 // set item defaults
@@ -104,7 +105,8 @@ static const sto_data_t itemDefaults PROGMEM = {
     "",            // STO_ITEM_WIFI_PASSWORD
     SCALE_WEIGHTSETPOINT,
     STEAMKP,
-    STEAMSETPOINT
+    STEAMSETPOINT,
+    COLDSTART_BOOST_TEMP,   // STO_ITEM_COLD_START_BOOST_STOP
 };
 
 /**
@@ -232,9 +234,14 @@ static inline int32_t getItemAddr(sto_item_id_t itemId, uint16_t* maxItemSize = 
             size = STRUCT_MEMBER_SIZE(sto_data_t, pidOn);
             break;
 
-         case STO_ITEM_PID_KP_STEAM:
+        case STO_ITEM_PID_KP_STEAM:
             addr = offsetof(sto_data_t, steamkp);
             size = STRUCT_MEMBER_SIZE(sto_data_t, steamkp);
+            break;
+
+        case STO_ITEM_COLD_START_BOOST_STOP:
+            addr = offsetof(sto_data_t, coldStartBoostTemp);
+            size = STRUCT_MEMBER_SIZE(sto_data_t, coldStartBoostTemp);
             break;
 
          case STO_ITEM_WEIGHTSETPOINT:
@@ -246,7 +253,7 @@ static inline int32_t getItemAddr(sto_item_id_t itemId, uint16_t* maxItemSize = 
             addr = offsetof(sto_data_t,steamsetpoint );
             size = STRUCT_MEMBER_SIZE(sto_data_t,steamsetpoint);
             break;
-            
+
         default:
             debugPrintf("%s(): invalid item ID %i!\n", __func__, itemId);
             addr = -1;

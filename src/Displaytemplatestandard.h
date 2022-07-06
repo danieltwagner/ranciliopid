@@ -74,31 +74,43 @@ void printScreen()
             }
         }
     #else
-        u8g2.setCursor(40, 48);
-
-        u8g2.print(bPID.GetKp(), 0); // P
-        u8g2.print("|");
-        if (bPID.GetKi() != 0) {
-            u8g2.print(bPID.GetKp() / bPID.GetKi(), 0);;
-        } // I
-        else {
-            u8g2.print("0");
-        }
-        u8g2.print("|");
-        u8g2.print(bPID.GetKd() / bPID.GetKp(), 0); // D
-        u8g2.setCursor(98, 48);
-
-        if (pidOutput < 99) {
-            u8g2.print(pidOutput / 10, 1);
+        if (coldStartBoostStatus != kColdStartBoostInactive) {
+            u8g2.setCursor(32, 48);
+            if (coldStartBoostStatus == kColdStartBoostHeating) {
+                u8g2.print("Heating to ");
+                u8g2.print(coldStartBoostTemp, 0);
+                u8g2.print((char)176);
+                u8g2.print("C");
+            } else {
+                u8g2.print("Coasting...");
+            }
         } else {
-            u8g2.print(pidOutput / 10, 0);
+            u8g2.setCursor(40, 48);
+
+            u8g2.print(bPID.GetKp(), 0); // P
+            u8g2.print("|");
+            if (bPID.GetKi() != 0) {
+                u8g2.print(bPID.GetKp() / bPID.GetKi(), 0);;
+            } // I
+            else {
+                u8g2.print("0");
+            }
+            u8g2.print("|");
+            u8g2.print(bPID.GetKd() / bPID.GetKp(), 0); // D
+            u8g2.setCursor(98, 48);
+
+            if (pidOutput < 99) {
+                u8g2.print(pidOutput / 10, 1);
+            } else {
+                u8g2.print(pidOutput / 10, 0);
+            }
+            u8g2.print("%");
         }
-        u8g2.print("%");
     #endif
 
         // Brew time or uptime
         u8g2.setCursor(32, 34);
-        // Shotimer shown if machine is brewing and after the brew 
+        // Shotimer shown if machine is brewing and after the brew
         if (machineState == kBrew || machineState == kShotTimerAfterBrew) {
             //show shot time
             u8g2.print(langstring_brew);
