@@ -51,6 +51,7 @@ typedef struct __attribute__((packed)) {
     char wifiPassword[25 + 1];
     double weightsetpoint;
     double steamkp;
+    double coldStartBoostTemp;
 } sto_data_t;
 
 
@@ -94,6 +95,7 @@ static const sto_data_t itemDefaults PROGMEM = {
     "",            // STO_ITEM_WIFI_PASSWORD
     SCALE_WEIGHTSETPOINT,
     STEAMKP,
+    COLDSTART_BOOST_TEMP,   // STO_ITEM_COLD_START_BOOST_STOP
 };
 
 /**
@@ -205,10 +207,14 @@ static inline int32_t getItemAddr(sto_item_id_t itemId, uint16_t* maxItemSize = 
             addr = offsetof(sto_data_t, pidOn);
             size = STRUCT_MEMBER_SIZE(sto_data_t, pidOn);
             break;
-         case STO_ITEM_PID_KP_STEAM:
+        case STO_ITEM_PID_KP_STEAM:
             addr = offsetof(sto_data_t, steamkp);
             size = STRUCT_MEMBER_SIZE(sto_data_t, steamkp);
-            break;    
+            break;
+        case STO_ITEM_COLD_START_BOOST_STOP:
+            addr = offsetof(sto_data_t, coldStartBoostTemp);
+            size = STRUCT_MEMBER_SIZE(sto_data_t, coldStartBoostTemp);
+            break;
 
         default:
             Serial.printf("%s(): invalid item ID %i!\n", __FUNCTION__, itemId);

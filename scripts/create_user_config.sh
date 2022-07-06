@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SOURCE_CODE_PATH=../rancilio-pid/
+SOURCE_CODE_PATH=../src/
 USER_CONFIG_FILE_NAME=userConfig
 
 echo "Creating user config file from sample"

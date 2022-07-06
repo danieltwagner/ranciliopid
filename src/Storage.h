@@ -35,11 +35,13 @@ typedef enum
   STO_ITEM_WEIGHTSETPOINT,          // Brewweight setpoint
   STO_ITEM_PID_ON,                  // PID on/off state
   STO_ITEM_PID_KP_STEAM,            // PID P part at steam phase
+  STO_ITEM_COLD_START_BOOST_STOP,   // temp to which to heat before handing over to pid
 
   /* WHEN ADDING NEW ITEMS FOLLOWING HAS TO BE UPDATED:
    * - storage structure:  sto_data_t
    * - item default value: itemDefaults
    * - item address/size:  getItemAddr()
+   * - readSysParamsFromStorage() / writeSysParamsToStorage()
    */
 
   STO_ITEM__LAST_ENUM       // must be the last one!

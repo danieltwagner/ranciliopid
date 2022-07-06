@@ -137,6 +137,11 @@ enum MACHINE {
 #define PRE_INFUSION_TIME 2        // pre-infusion time in seconds
 #define PRE_INFUSION_PAUSE_TIME 5  // pre-infusion pause time in seconds
 
+// Coldstart boost: Replacement for coldstart PID, quickly heats to a pre-set temperature
+#define COLDSTART_BOOST 0          // 0 = use coldstart pid, 1 = use a single heating pulse to quickly get to temperature
+#define COLDSTART_BOOST_TEMP 85    // If using COLDSTART_BOOST = 1, the temperature at which to stop heating.
+#define COLDSTART_TEMP_HISTORY 6   // Window size to detect peak temperature for handoff to PID
+
 // Backflush values
 #define FILLTIME 3000              // time in ms the pump is running
 #define FLUSHTIME 6000             // time in ms the 3-way valve is open -> backflush
